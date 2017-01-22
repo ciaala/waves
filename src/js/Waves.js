@@ -18,10 +18,16 @@ define('Waves', ['Phaser'], function (Phaser) {
         this.stopPosition = [];
         this.stopPosition[0] = game.rnd.integerInRange(-this.game.height / 4, this.game.height / 4) + this.startPosition[0];
         var distance = (this.game.height / 4) - Math.abs(this.startPosition[0] - this.stopPosition[0]);
-        this.startPosition[1] = game.rnd.integerInRange(-distance, distance) + this.startPosition[1];
+        this.stopPosition[1] = game.rnd.integerInRange(-distance, distance) + this.startPosition[1];
 
-        this.direction = [game.rnd.realInRange(-1, 1), game.rnd.realInRange(-1, 1)];
-        this.speed = game.rnd.realInRange(0, 2);
+        var sign = game.rnd.sign();
+        var dy = (this.stopPosition[1] - this.startPosition[1]);
+        var dx = (this.stopPosition[0] - this.startPosition[0]);
+        this.direction = [
+            sign * dy / (dx * dy),
+            -sign * dx / (dx * dy)
+        ];
+        this.speed = game.rnd.realInRange(1, 1.5);
     };
 
     Wave.prototype.update = function (elapsedTime) {
@@ -33,7 +39,70 @@ define('Waves', ['Phaser'], function (Phaser) {
     };
 
     Wave.prototype.draw = function (bitmapCloned) {
-        bitmapCloned.line(this.startPosition[0], this.startPosition[1], this.stopPosition[0], this.stopPosition[1]);
+        if (this.grandPosition) {
+            bitmapCloned.line(
+                this.grandPosition[0],
+                this.grandPosition[1],
+                this.grandPosition[2],
+                this.grandPosition[3],
+                '#44f', 16);
+        } else {
+            this.grandPosition = [];
+        }
+
+
+        if (this.previousPosition) {
+            bitmapCloned.line(
+                this.previousPosition[0],
+                this.previousPosition[1],
+                this.previousPosition[2],
+                this.previousPosition[3],
+                '#88f', 4);
+            this.grandPosition[0] = this.previousPosition[0];
+            this.grandPosition[1] = this.previousPosition[1];
+            this.grandPosition[2] = this.previousPosition[2];
+            this.grandPosition[3] = this.previousPosition[3];
+        } else {
+            this.previousPosition = [];
+        }
+        this.previousPosition[0] = this.startPosition[0];
+        this.previousPosition[1] = this.startPosition[1];
+        this.previousPosition[2] = this.stopPosition[0];
+        this.previousPosition[3] = this.stopPosition[1];
+
+        bitmapCloned.line(
+            this.startPosition[0],
+            this.startPosition[1],
+            this.stopPosition[0],
+            this.stopPosition[1],
+            '#bbf', 1);
+
+        /*
+         var x = 0;
+         var j = 0;
+         var dx = (this.startPosition[0] - this.stopPosition[0]) > 0 ? 1 : -1;
+         var dy = this.startPosition[1] - this.stopPosition[1];
+         //dx = dx / Math.abs(dx)
+         for (x = this.startPosition[0]; x < this.stopPosition[0]; x += dx) {
+         var y = ((dx * i ) / dy) + this.startPosition[1];
+         this.waterSpray(x, y);
+         }
+         */
+        /*this.game.line(this.startPosition[0],
+         this.startPosition[1],
+         this.stopPosition[0],
+         this.stopPosition[1],
+         '#ddf', 4);*/
+        // var l = this.game.Line(0, 0, this.game.width, this.game.height, '#ccf', this.game.rnd.integerInRange(0,10));
+        //l.addToWorld();
+    };
+    Wave.prototype.waterSpray = function (bitMapCloned, x, y) {
+        bitmapCloned.line(
+            this.startPosition[0],
+            this.startPosition[1],
+            this.stopPosition[0],
+            this.stopPosition[1],
+            '#ddf', 4);
     };
     Wave.prototype.isAlive = function () {
         if ((this.startPosition[0] < 0) || (this.startPosition[0] > this.game.width)) {
@@ -74,29 +143,62 @@ define('Waves', ['Phaser'], function (Phaser) {
     };
     Waves.prototype.update = function () {
         var elapsedTime = performance.now() - this.oldClick;
-
-        this.updateWaves();
+        elapsedTime = elapsedTime < 30 ? elapsedTime : 30;
+        this.updateWaves(elapsedTime);
         this.oldClick = performance.now();
+
+        this.originalSurface.moveH(this.game.rnd.integerInRange(-2, 0));
+        this.seaSurface.copy(this.originalSurface);
+        this.drawWaves(this.seaSurface);
+        //this.seaSurface.line(0, 0, this.game.width, this.game.height, '#ccf', this.game.rnd.integerInRange(0,10));
+
     };
     Waves.prototype.updateWaves = function (elapsedTime) {
-        for (var i = 0; i < this.waves.length; i++) {
-            var wave = this.waves[i];
+        var wave = null;
+        var i = 0;
+        for (i = 0; i < this.waves.length; i++) {
+            wave = this.waves[i];
             wave.update(elapsedTime);
-            if (wave.isAlive()) {
-                wave.draw();
-            }
+            /*
+             if (wave.isAlive()) {
+             wave.draw(this.seaSurface);
+             }
+             this.seaSurface.update();
+             */
         }
-        for (var i = 0; i < this.waves.length; i++) {
-            var wave = this.waves[i];
-            if (wave.isAlive()) {
+        for (i = 0; i < this.waves.length; i++) {
+            wave = this.waves[i];
+            if (!wave.isAlive()) {
                 this.waves.splice(i);
             }
         }
     };
-    Waves.prototype.render = function () {
-        //this.game.debug.inputInfo(32, 32);
-        //this.game.debug.animation.(32,200);
+    Waves.prototype.drawWaves = function (bitmapData) {
+        var wave = null;
+        var i = 0;
+        for (i = 0; i < this.waves.length; i++) {
+            wave = this.waves[i];
+            if (wave.isAlive()) {
+                wave.draw(bitmapData);
+            }
+
+        }
     };
+    Waves.prototype.render = function () {
+        /*
+         //this.seaSurface.addToWorld();
+         //this.game.debug.inputInfo(32, 32);
+         //this.game.debug.animation.(32,200);
+         //console.log("waves: #" + this.waves.length);
+         var wave = null;
+         var i = 0;
+
+         }
+         this.seaSurface.update();
+         */
+
+    };
+
     Waves.prototype.setupBoatAnimation = function () {
         this.boatSprite = this.game.add.sprite(20, 20, 'boat');
         //boatSprite.animations.add("left", Phaser.Animation.generateFrameNames('walk',19,27));
@@ -137,6 +239,8 @@ define('Waves', ['Phaser'], function (Phaser) {
                 this.seaSurface.pixels[i] = (255 << 24) | ((192 + light) << 16) | (light << 8) | light;
             }
             this.seaSurface.setPixel32(0, 0, light, light, 192 + light, 255, true);
+            //this.seaSurface.line(0, 0, this.game.width, this.game.height, '#ccf', 4);
+
         };
         var fastSetPixels = function () {
             for (var x = 0; x < this.game.width; x++) {
@@ -162,6 +266,8 @@ define('Waves', ['Phaser'], function (Phaser) {
         fastDirectPixels.call(this);
         // arrayPixels.call(this);
         //this.seaSurface.update();
+        this.originalSurface = this.game.make.bitmapData(this.seaSurface.width, this.seaSurface.height);
+        this.originalSurface.copy(this.seaSurface);
         this.seaSurface.addToWorld();
     };
     Waves.prototype.setupCamera = function () {
@@ -264,19 +370,29 @@ define('Waves', ['Phaser'], function (Phaser) {
         // this.addQuake();
         this.spawnTimeoutTime = 1000;
         this.spawnTimeout = setTimeout(spawnMonsterCallback, this.spawnTimeoutTime, this);
+        this.oldClick = performance.now();
     };
     var spawnMonsterCallback = function (wavesObject) {
         wavesObject.spawnMonster();
+        wavesObject.spawnWaves();
+        wavesObject.spawnTimeout = setTimeout(spawnMonsterCallback, wavesObject.spawnTimeoutTime, wavesObject);
 
     };
+
     Waves.prototype.spawnMonster = function () {
         this.tentacleSpriteFactory.createSprite(
             this.game.rnd.integerInRange(0, this.game.width),
             this.game.rnd.integerInRange(0, this.game.height)
         );
 
-        this.spawnTimeout = setTimeout(spawnMonsterCallback, this.spawnTimeoutTime, this);
     };
+
+    Waves.prototype.spawnWaves = function () {
+        if (this.waves.length < 5) {
+            this.waves[this.waves.length] = new Wave(this.game);
+        }
+    };
+
     Waves.prototype.goFull = function () {
         if (this.game.scale.isFullScreen) {
             this.game.scale.stopFullScreen();
