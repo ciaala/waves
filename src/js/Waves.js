@@ -7,14 +7,29 @@ define('Waves', ['Phaser'], function (Phaser) {
         var srcU8 = new Uint8Array(src, srcOffset, length);
         dstU8.set(srcU8);
     };
+    function sqr(x) {
+        return x * x
+    }
 
+    function dist2(v, w) {
+        return sqr(v.x - w.x) + sqr(v.y - w.y)
+    }
+
+    function distToSegmentSquared(p, v, w) {
+        var l2 = dist2(v, w);
+        if (l2 == 0) return dist2(p, v);
+        var t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return dist2(p, {
+            x: v.x + t * (w.x - v.x),
+            y: v.y + t * (w.y - v.y)
+        });
+    }
 
     var Wave = function (game) {
         this.game = game;
         this.startPosition = [game.rnd.integerInRange(0, game.width),
             game.rnd.integerInRange(0, game.height)];
-
-
         this.stopPosition = [];
         this.stopPosition[0] = game.rnd.integerInRange(-this.game.height / 4, this.game.height / 4) + this.startPosition[0];
         var distance = (this.game.height / 4) - Math.abs(this.startPosition[0] - this.stopPosition[0]);
@@ -27,7 +42,7 @@ define('Waves', ['Phaser'], function (Phaser) {
             sign * dy / (dx * dy),
             -sign * dx / (dx * dy)
         ];
-        this.speed = game.rnd.realInRange(1, 1.5);
+        this.speed = game.rnd.realInRange(1.1, 1.4);
     };
 
     Wave.prototype.update = function (elapsedTime) {
@@ -39,13 +54,30 @@ define('Waves', ['Phaser'], function (Phaser) {
     };
 
     Wave.prototype.draw = function (bitmapCloned) {
+        if (this.grandGrandPosition) {
+            bitmapCloned.line(
+                this.grandGrandPosition[0],
+                this.grandGrandPosition[1],
+                this.grandGrandPosition[2],
+                this.grandGrandPosition[3],
+                '#22f', 12);
+
+
+        } else {
+            this.grandGrandPosition = [];
+        }
         if (this.grandPosition) {
             bitmapCloned.line(
                 this.grandPosition[0],
                 this.grandPosition[1],
                 this.grandPosition[2],
                 this.grandPosition[3],
-                '#44f', 16);
+                '#44f', 4);
+            this.grandGrandPosition[0] = this.grandPosition[0];
+            this.grandGrandPosition[1] = this.grandPosition[1];
+            this.grandGrandPosition[2] = this.grandPosition[2];
+            this.grandGrandPosition[3] = this.grandPosition[3];
+
         } else {
             this.grandPosition = [];
         }
@@ -75,7 +107,7 @@ define('Waves', ['Phaser'], function (Phaser) {
             this.startPosition[1],
             this.stopPosition[0],
             this.stopPosition[1],
-            '#bbf', 1);
+            '#dff', 1);
 
         /*
          var x = 0;
@@ -116,6 +148,23 @@ define('Waves', ['Phaser'], function (Phaser) {
         }
         return true;
     };
+    Wave.prototype.isNear = function (point) {
+        if (distToSegmentSquared({
+                x: this.startPosition[0],
+                y: this.startPosition[1],
+            }, {
+                x: this.stopPosition[0],
+                y: this.stopPosition[1]
+            }, point) < 49) {
+            return true;
+        } else {
+            return false;
+        }
+    };
+    Wave.prototype.destroy = function () {
+
+    };
+
     var TentacleFactory = function (game) {
         this.game = game;
         this.game.load.atlasJSONHash('tentacle', 'rsc/tentacle.png', 'rsc/tentacle.json');
@@ -124,6 +173,7 @@ define('Waves', ['Phaser'], function (Phaser) {
     TentacleFactory.prototype.createSprite = function (x, y) {
         var sprite = this.game.add.sprite(x, y, 'tentacle');
         var frames = Phaser.Animation.generateFrameNames("tentacle", 1, 6);
+        sprite.scale.setTo(0.7, 0.7);
         sprite.animations.add("idle", frames);
         sprite.animations.play("idle", 5, true);
         return sprite;
@@ -133,25 +183,110 @@ define('Waves', ['Phaser'], function (Phaser) {
         this.game = new Phaser.Game(window.innerWidth,
             window.innerHeight, Phaser.AUTO, 'Waves', this);
         this.waves = [];
-
+        this.monsters = [];
+        this.healthBarValue = 100;
+        this.stopGame = false;
     };
     Waves.prototype.phaser = Phaser;
     Waves.prototype.preload = function () {
+        this.game.load.audio('background', 'rsc/classical.mp3')
         this.game.load.atlasJSONHash('boat', 'rsc/boat.png', 'rsc/boat.json');
         this.tentacleSpriteFactory = new TentacleFactory(this.game);
-
+        this.game.load.atlasJSONHash('treasure', 'rsc/treasure.png', 'rsc/treasure.json');
     };
     Waves.prototype.update = function () {
-        var elapsedTime = performance.now() - this.oldClick;
-        elapsedTime = elapsedTime < 30 ? elapsedTime : 30;
-        this.updateWaves(elapsedTime);
-        this.oldClick = performance.now();
+        if (!this.stopGame) {
+            var elapsedTime = performance.now() - this.oldClick;
+            elapsedTime = elapsedTime < 30 ? elapsedTime : 30;
+            this.updateWaves(elapsedTime);
+            this.oldClick = performance.now();
 
-        this.originalSurface.moveH(this.game.rnd.integerInRange(-2, 0));
-        this.seaSurface.copy(this.originalSurface);
-        this.drawWaves(this.seaSurface);
-        //this.seaSurface.line(0, 0, this.game.width, this.game.height, '#ccf', this.game.rnd.integerInRange(0,10));
+            this.originalSurface.moveH(this.game.rnd.integerInRange(-2, 0));
+            this.seaSurface.copy(this.originalSurface);
+            this.drawWaves(this.seaSurface);
+            //this.seaSurface.line(0, 0, this.game.width, this.game.height, '#ccf', this.game.rnd.integerInRange(0,10));
+            this.checkHitBox();
+        }
+    };
+    Waves.prototype.checkHitBox = function () {
+        var wave = null;
+        var monster = null;
 
+        var i = 0;
+        for (i = 0; i < this.waves.length; i++) {
+            wave = this.waves[i];
+            if (wave.isNear(this.boatSprite.world)) {
+                this.healthBarValue -= 1;
+                this.healthBar.setPercent(this.healthBarValue);
+                console.log("hit wave");
+                this.addQuake();
+            }
+        }
+
+        for (i = 0; i < this.monsters.length; i++) {
+            monster = this.monsters[i];
+            if (Math.abs(monster.world.x - this.boatSprite.world.x) < 15 &&
+                Math.abs(monster.world.y - this.boatSprite.world.y) < 15) {
+                this.healthBarValue -= 1;
+                this.healthBar.setPercent(this.healthBarValue);
+                this.addQuake();
+                console.log("hit monster");
+            }
+        }
+        if (Math.abs(this.treasure.world.x - this.boatSprite.world.x) < 15 &&
+            Math.abs(this.treasure.world.x - this.boatSprite.world.x) < 15) {
+            this.win();
+        }
+
+        if (this.healthBarValue < 0) {
+            this.loose();
+        }
+    };
+    Waves.prototype.win = function () {
+        this.killGame();
+        var style = {font: "bold 64px Arial", fill: "#bf8", boundsAlignH: "center", boundsAlignV: "middle"};
+
+        var text = this.game.add.text(this.game.width / 2, this.game.height / 2, 'You collected the treasure !!!', style);
+
+        text.anchor.x = 0.5;
+        text.anchor.y = 0.5;
+        text = this.game.add.text(this.game.width / 2, (this.game.height / 2) - 64, 'You Won,', style);
+        text.anchor.x = 0.5;
+        text.anchor.y = 0.5;
+        setTimeout(function () {
+            window.location.replace("http://globalgamejam.org/");
+        }, 2000);
+    };
+    Waves.prototype.killGame = function () {
+        clearTimeout(this.spawnTimeout);
+        this.stopGame = true;
+        var wave = null;
+        var monster = null;
+        var i = 0;
+        for (i = 0; i < this.waves.length; i++) {
+            wave = this.waves[i];
+            wave.destroy();
+        }
+
+        for (i = 0; i < this.monsters.length; i++) {
+            monster = this.monsters[i];
+            monster.destroy();
+        }
+        this.monsters = [];
+        this.waves = [];
+
+        this.boatSprite.destroy();
+        this.music.stop();
+
+    };
+    Waves.prototype.loose = function () {
+
+        this.killGame();
+        var style = {font: "bold 64px Arial", fill: "#f88", boundsAlignH: "center", boundsAlignV: "middle"};
+
+        var text = this.game.add.text(this.game.width / 2, this.game.height / 2, 'Your ship has been destroyed', style);
+        text.anchor.x = 0.5;
+        text.anchor.y = 0.5;
     };
     Waves.prototype.updateWaves = function (elapsedTime) {
         var wave = null;
@@ -159,12 +294,6 @@ define('Waves', ['Phaser'], function (Phaser) {
         for (i = 0; i < this.waves.length; i++) {
             wave = this.waves[i];
             wave.update(elapsedTime);
-            /*
-             if (wave.isAlive()) {
-             wave.draw(this.seaSurface);
-             }
-             this.seaSurface.update();
-             */
         }
         for (i = 0; i < this.waves.length; i++) {
             wave = this.waves[i];
@@ -200,7 +329,7 @@ define('Waves', ['Phaser'], function (Phaser) {
     };
 
     Waves.prototype.setupBoatAnimation = function () {
-        this.boatSprite = this.game.add.sprite(20, 20, 'boat');
+        this.boatSprite = this.game.add.sprite(20, 60, 'boat');
         //boatSprite.animations.add("left", Phaser.Animation.generateFrameNames('walk',19,27));
         this.boatSprite.animations.add("top", Phaser.Animation.generateFrameNames('sprite', 1, 8));
         this.boatSprite.animations.add("top-right", Phaser.Animation.generateFrameNames('sprite', 9, 16));
@@ -282,7 +411,7 @@ define('Waves', ['Phaser'], function (Phaser) {
         // it's not necessary to increase height, we do it to keep uniformity
         this.game.world.setBounds(x, y, w, h);
         this.game.world.camera.position.set(0);
-        this.game.input.onDown.add(this.goFull, this);
+        //this.game.input.onDown.add(this.goFull, this);
     };
     Waves.prototype.moveBoatUp = function () {
         this.boatSprite.animations.stop(null, true);
@@ -359,32 +488,38 @@ define('Waves', ['Phaser'], function (Phaser) {
 
 
     Waves.prototype.create = function () {
-
         this.setupCamera();
-        var t0 = performance.now();
+        this.music = this.game.add.audio("background");
+        this.music.play();
         this.setupSeaSurface();
-        var t1 = performance.now();
-        console.log(t1 - t0);
+//        this.treasure = this.game.add.sprite(40, 40, 'treasure');
+
+        this.treasure = this.game.add.sprite(this.game.width-40, this.game.height-40, 'treasure');
+        this.treasure.scale.setTo(0.2);
         this.setupBoatAnimation();
         this.setupInput();
         // this.addQuake();
         this.spawnTimeoutTime = 1000;
-        this.spawnTimeout = setTimeout(spawnMonsterCallback, this.spawnTimeoutTime, this);
+        this.spawnTimeout = setTimeout(spawnCallback, this.spawnTimeoutTime, this);
         this.oldClick = performance.now();
+        this.healthBarConfig = {x: 120, y: 30, bar: {color: "#484"}};
+        this.healthBar = new HealthBar(this.game, this.healthBarConfig);
     };
-    var spawnMonsterCallback = function (wavesObject) {
+    var spawnCallback = function (wavesObject) {
         wavesObject.spawnMonster();
         wavesObject.spawnWaves();
-        wavesObject.spawnTimeout = setTimeout(spawnMonsterCallback, wavesObject.spawnTimeoutTime, wavesObject);
+        wavesObject.spawnTimeout = setTimeout(spawnCallback, wavesObject.spawnTimeoutTime, wavesObject);
 
     };
 
     Waves.prototype.spawnMonster = function () {
-        this.tentacleSpriteFactory.createSprite(
-            this.game.rnd.integerInRange(0, this.game.width),
-            this.game.rnd.integerInRange(0, this.game.height)
-        );
-
+        if (this.monsters.length < 20) {
+            var monster = this.tentacleSpriteFactory.createSprite(
+                this.game.rnd.integerInRange(0, this.game.width),
+                this.game.rnd.integerInRange(0, this.game.height)
+            );
+            this.monsters.push(monster);
+        }
     };
 
     Waves.prototype.spawnWaves = function () {

@@ -1,0 +1,54 @@
+{
+  "frames": {
+    "sprite1": {
+      "frame": {
+        "x": 248,
+        "y": 11,
+        "w": 225,
+        "h": 191
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 225,
+        "h": 191
+      },
+      "sourceSize": {
+        "w": 225,
+        "h": 191
+      }
+    },
+    "sprite2": {
+      "frame": {
+        "x": 0,
+        "y": 38,
+        "w": 189,
+        "h": 164
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 189,
+        "h": 164
+      },
+      "sourceSize": {
+        "w": 189,
+        "h": 164
+      }
+    }
+  },
+  "meta": {
+    "app": "https://www.leshylabs.com/apps/sstool/",
+    "version": "Leshy SpriteSheet Tool v0.8.4",
+    "image": "treasure.png",
+    "size": {
+      "w": 484,
+      "h": 226
+    },
+    "scale": 1
+  }
+}
